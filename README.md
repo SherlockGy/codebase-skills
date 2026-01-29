@@ -64,6 +64,59 @@ cp codebase-skills/hooks/hooks.json ~/.claude/hooks/
 
 ---
 
+## 卸载
+
+### 完全卸载（插件 + Marketplace）
+
+```bash
+# 1. 卸载插件
+claude plugin uninstall codebase-skills
+
+# 2. 移除 Marketplace
+claude plugin marketplace remove codebase-skills-marketplace
+
+# 3. 验证卸载
+claude plugin list
+```
+
+### 仅卸载插件（保留 Marketplace）
+
+```bash
+# 卸载插件
+claude plugin uninstall codebase-skills
+
+# 之后可以重新安装
+claude plugin install codebase-skills@codebase-skills-marketplace --scope user
+```
+
+### 更新插件（重装）
+
+```bash
+# 1. 卸载旧版本
+claude plugin uninstall codebase-skills
+
+# 2. 移除旧 Marketplace
+claude plugin marketplace remove codebase-skills-marketplace
+
+# 3. 添加新 Marketplace（从更新后的目录）
+cd /path/to/codebase-skills
+claude plugin marketplace add "./"
+
+# 4. 重新安装
+claude plugin install codebase-skills@codebase-skills-marketplace --scope user
+```
+
+**注意**：如果使用方式 3（复制到 skills 目录）安装，直接删除对应文件即可：
+```bash
+rm -rf ~/.claude/skills/codebase-*
+rm -rf ~/.claude/skills/glossary-manager
+rm -rf ~/.claude/skills/knowledge-manager
+rm -rf ~/.claude/skills/change-planner
+rm ~/.claude/hooks/hooks.json  # 如果复制过
+```
+
+---
+
 ## Skills 列表
 
 | Skill | 命令 | 说明 | 用户可调用 |
