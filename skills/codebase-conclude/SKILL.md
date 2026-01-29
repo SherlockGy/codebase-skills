@@ -4,6 +4,7 @@ description: |
   综合结论阶段。基于扫描和追踪报告，生成最终分析结论。
   必须先有 scan-report.md 和 trace-report.md 才能执行。
 context: fork
+agent: Explore
 allowed-tools: Read
 disable-model-invocation: true
 user-invocable: false
@@ -181,6 +182,26 @@ $ARGUMENTS
 
 *此报告由 codebase-skills 插件自动生成*
 *基于扫描报告和追踪报告综合分析*
+```
+
+## 输出方式
+
+**文件为主，对话框通知**：
+
+1. **写入文件**：将完整报告写入 `.claude/investigation/conclusion.md`
+2. **对话框通知**：简洁告知用户文件位置
+
+对话框通知格式：
+```
+✅ 分析完成
+
+结论文件：`.claude/investigation/conclusion.md`
+
+简要发现：
+- [1-2句核心结论]
+- [关键发现数量]个已确认事实，[数量]个待验证假设
+
+详细内容请查看报告文件。
 ```
 
 ## 输出质量检查

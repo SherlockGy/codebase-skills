@@ -1,5 +1,225 @@
 # 输出模板
 
+## 可视化图表指南
+
+### 推荐使用场景
+
+| 图表类型 | 适用场景 | 优先级 |
+|----------|----------|--------|
+| ASCII 调用链树 | 方法调用关系 | ⭐⭐⭐ 必选 |
+| Mermaid 序列图 | 多服务交互、时序逻辑 | ⭐⭐⭐ 强烈推荐 |
+| Mermaid 状态图 | 状态机、生命周期 | ⭐⭐⭐ 强烈推荐 |
+| Mermaid 流程图 | 业务流程、决策分支 | ⭐⭐ 推荐 |
+| 包结构树 | 模块关系、目录结构 | ⭐⭐ 推荐 |
+| Mermaid ER图 | 数据模型关系 | ⭐ 可选 |
+| Mermaid 类图 | 类继承/实现关系 | ⭐ 可选 |
+
+---
+
+## Mermaid 图表模板
+
+### 序列图（服务交互）
+
+```markdown
+## 服务交互时序
+
+```mermaid
+sequenceDiagram
+    participant C as Controller
+    participant S as OrderService
+    participant I as InventoryService
+    participant M as OrderMapper
+    participant MQ as RabbitMQ
+
+    C->>S: createOrder(dto)
+    S->>S: validate(dto)
+    S->>I: deduct(skuId, quantity)
+    I-->>S: success
+    S->>M: insert(order)
+    M-->>S: orderId
+    S--)MQ: order.created.queue
+    S-->>C: OrderVO
+```
+```
+
+### 状态图（生命周期）
+
+```markdown
+## 订单状态流转
+
+```mermaid
+stateDiagram-v2
+    [*] --> CREATED: 创建订单
+    CREATED --> PAID: 支付成功
+    CREATED --> CANCELLED: 超时/用户取消
+    PAID --> SHIPPED: 商家发货
+    PAID --> REFUNDING: 申请退款
+    SHIPPED --> COMPLETED: 确认收货
+    SHIPPED --> REFUNDING: 申请退款
+    REFUNDING --> REFUNDED: 退款成功
+    REFUNDING --> PAID: 退款拒绝
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+    REFUNDED --> [*]
+```
+```
+
+### 流程图（业务逻辑）
+
+```markdown
+## 订单创建流程
+
+```mermaid
+flowchart TD
+    A[接收请求] --> B{参数校验}
+    B -->|失败| C[返回错误]
+    B -->|成功| D{库存检查}
+    D -->|不足| E[返回库存不足]
+    D -->|充足| F[扣减库存]
+    F --> G[创建订单]
+    G --> H[发送消息]
+    H --> I[返回成功]
+
+    style A fill:#e1f5fe
+    style I fill:#c8e6c9
+    style C fill:#ffcdd2
+    style E fill:#ffcdd2
+```
+```
+
+### ER 图（数据模型）
+
+```markdown
+## 订单相关数据模型
+
+```mermaid
+erDiagram
+    ORDER ||--o{ ORDER_ITEM : contains
+    ORDER ||--|| PAYMENT : has
+    ORDER }o--|| USER : belongs_to
+    ORDER_ITEM }o--|| PRODUCT : references
+
+    ORDER {
+        bigint id PK
+        varchar order_no
+        bigint user_id FK
+        varchar status
+        decimal total_amount
+        timestamp created_at
+    }
+
+    ORDER_ITEM {
+        bigint id PK
+        bigint order_id FK
+        bigint product_id FK
+        int quantity
+        decimal price
+    }
+```
+```
+
+### 类图（继承/实现关系）
+
+```markdown
+## 支付策略类结构
+
+```mermaid
+classDiagram
+    class PaymentStrategy {
+        <<interface>>
+        +pay(order) PayResult
+        +refund(order) RefundResult
+    }
+
+    class AlipayStrategy {
+        -AlipayClient client
+        +pay(order) PayResult
+        +refund(order) RefundResult
+    }
+
+    class WechatPayStrategy {
+        -WechatPayClient client
+        +pay(order) PayResult
+        +refund(order) RefundResult
+    }
+
+    PaymentStrategy <|.. AlipayStrategy
+    PaymentStrategy <|.. WechatPayStrategy
+```
+```
+
+---
+
+## 包结构树模板
+
+### 模块级结构
+
+```markdown
+## 项目结构
+
+```
+order-service/
+├── order-api/                    # API 模块（对外接口定义）
+│   └── src/main/java/
+│       └── com.example.order.api/
+│           ├── dto/              # 数据传输对象
+│           ├── enums/            # 枚举定义
+│           └── facade/           # Dubbo 接口
+│
+├── order-service/                # 服务实现模块
+│   └── src/main/java/
+│       └── com.example.order/
+│           ├── controller/       # HTTP 入口
+│           ├── service/          # 业务逻辑
+│           │   ├── impl/
+│           │   └── strategy/     # 策略模式
+│           ├── mapper/           # 数据访问
+│           ├── domain/           # 领域模型
+│           │   ├── entity/
+│           │   └── event/
+│           ├── integration/      # 外部服务调用
+│           │   ├── payment/
+│           │   └── inventory/
+│           └── job/              # 定时任务
+│
+└── order-infrastructure/         # 基础设施模块
+    └── src/main/java/
+        └── com.example.order.infra/
+            ├── config/           # 配置类
+            ├── mq/               # 消息队列
+            └── cache/            # 缓存
+```
+```
+
+### 关注区域标注
+
+```markdown
+## 相关代码结构
+
+```
+com.example.order/
+├── controller/
+│   └── OrderController.java      ← [入口] HTTP 请求处理
+├── service/
+│   ├── OrderService.java         ← [核心] 业务编排
+│   ├── impl/
+│   │   └── OrderServiceImpl.java ← [实现] 具体逻辑
+│   └── strategy/
+│       ├── PriceStrategy.java    ← [策略] 价格计算
+│       └── DiscountStrategy.java
+├── mapper/
+│   ├── OrderMapper.java          ← [数据] MyBatis 接口
+│   └── OrderMapper.xml           ← [SQL] 具体 SQL
+└── domain/
+    ├── entity/
+    │   └── Order.java            ← [实体] 订单模型
+    └── event/
+        └── OrderCreatedEvent.java ← [事件] 领域事件
+```
+```
+
+---
+
 ## 调查范围声明模板
 
 ### 基本格式

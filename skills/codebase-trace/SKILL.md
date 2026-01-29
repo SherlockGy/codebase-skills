@@ -157,7 +157,8 @@ git log --oneline -10 -- <file>
 ---
 stage: trace
 timestamp: [当前时间，ISO 8601 格式]
-depends_on: scan-report.md
+depends_on:
+  - scan-report.md
 files_traced: [深度读取的文件数量]
 ---
 
@@ -171,7 +172,7 @@ files_traced: [深度读取的文件数量]
 
 ## 调用链
 
-### 主调用链
+### 主调用链（ASCII 树）
 
 ```
 [入口方法]
@@ -180,6 +181,25 @@ files_traced: [深度读取的文件数量]
 ├─→ [方法2] (文件:行号)
 └─→ [方法3] (文件:行号)
     └─→ [外部服务调用]
+```
+
+### 服务交互时序（Mermaid 序列图）
+
+**当涉及多服务交互时，使用序列图**：
+
+```mermaid
+sequenceDiagram
+    participant C as Controller
+    participant S as Service
+    participant R as Repository
+    participant E as ExternalService
+
+    C->>S: method(params)
+    S->>R: query/save
+    R-->>S: result
+    S->>E: call external
+    E-->>S: response
+    S-->>C: return
 ```
 
 ### 关键节点说明
@@ -196,6 +216,20 @@ files_traced: [深度读取的文件数量]
 
 ```
 [创建点] → [转换点] → [状态变更] → [持久化] → [返回]
+```
+
+### 状态流转（Mermaid 状态图）
+
+**当涉及状态机时，使用状态图**：
+
+```mermaid
+stateDiagram-v2
+    [*] --> STATE_A: 创建
+    STATE_A --> STATE_B: 事件1
+    STATE_A --> STATE_C: 事件2
+    STATE_B --> STATE_D: 事件3
+    STATE_C --> [*]
+    STATE_D --> [*]
 ```
 
 ### 状态变更点
@@ -271,6 +305,29 @@ files_traced: [深度读取的文件数量]
 - 最大调用深度：[N] 层
 - 是否到达边界：[是/否，如有说明原因]
 ```
+
+## 输出方式
+
+**文件为主**：将报告写入 `.claude/investigation/trace-report.md`
+
+此文件供后续结论阶段读取，不直接展示给用户。
+
+## 可视化要求
+
+**强烈鼓励使用可视化图表**：
+
+| 内容 | 推荐图表 |
+|------|----------|
+| 调用链 | ASCII 树 + Mermaid 序列图 |
+| 状态流转 | Mermaid 状态图 |
+| 数据流 | ASCII 箭头图 |
+| 模块关系 | 包结构树 |
+
+参考以下模板文档：
+- 本 skill 目录下的 `references/rpc-patterns.md`
+- codebase-investigate skill 目录下的 `references/output-templates.md`
+
+**注意**：这些引用供你理解输出格式，不是运行时路径。
 
 ## 注意事项
 

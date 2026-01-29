@@ -18,10 +18,16 @@ const TRACKING_FILE = path.join(TRACKING_DIR, 'scope-tracking.log');
 
 /**
  * 确保追踪目录存在
+ * Fix-10.5: 添加错误处理
  */
 function ensureTrackingDir() {
-  if (!fs.existsSync(TRACKING_DIR)) {
-    fs.mkdirSync(TRACKING_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(TRACKING_DIR)) {
+      fs.mkdirSync(TRACKING_DIR, { recursive: true });
+    }
+  } catch (e) {
+    // 目录创建失败不阻止流程，仅记录警告
+    console.warn(`[追踪警告] 无法创建目录 ${TRACKING_DIR}: ${e.message}`);
   }
 }
 
@@ -86,13 +92,14 @@ function main() {
 
   if (!toolInput) {
     console.error('Usage: node track-investigation.js "<tool_input>"');
-    process.exit(1);
+    process.exit(0); // 改为 0：用法错误不应阻止流程
   }
 
   const entry = formatTrackingEntry(toolInput);
   appendTracking(entry);
 
-  // 静默成功，不输出任何内容（避免干扰 Claude 的输出）
+  // 静默成功，明确返回 0
+  process.exit(0);
 }
 
 main();

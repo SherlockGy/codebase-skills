@@ -105,6 +105,29 @@ $ARGUMENTS
 |------|------|----------|
 | [模块名] | [路径] | [简要描述] |
 
+### 包结构树
+
+**使用字符树展示关键目录结构**：
+
+```
+project-name/
+├── module-api/                   # API 定义
+│   └── src/main/java/
+│       └── com.example.api/
+│           ├── dto/              # DTO
+│           └── facade/           # 接口
+│
+├── module-service/               # 服务实现
+│   └── src/main/java/
+│       └── com.example/
+│           ├── controller/       ← [入口层]
+│           ├── service/          ← [业务层]
+│           ├── mapper/           ← [数据层]
+│           └── domain/           ← [领域层]
+│
+└── module-common/                # 公共模块
+```
+
 ### 技术栈
 
 - **语言**：Java [版本]
@@ -143,6 +166,12 @@ $ARGUMENTS
 ### 扫描限制说明
 [如有任何限制或遗漏，在此说明]
 ```
+
+## 输出方式
+
+**文件为主**：将报告写入 `.claude/investigation/scan-report.md`
+
+此文件供后续追踪阶段读取，不直接展示给用户。
 
 ## 注意事项
 
