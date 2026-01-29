@@ -54,11 +54,25 @@ description: |
 - `--confirmed` 或 `--pending`（可选，默认 pending）
 
 **操作**：
-1. 读取现有 rules.md（如不存在则创建）
-2. 解析用户提供的规则信息
-3. 添加到对应区域（已确认/待确认）
-4. 生成唯一 ID（R001, R002... 或 P001, P002...）
-5. 写入文件
+
+1. **创建确认文件**（必须，否则写入会被 hook 阻止）：
+   ```json
+   // 写入 .claude/knowledge-write-confirmed.json
+   {
+     "user_confirmed": true,
+     "confirmed_at": "当前时间 ISO 8601",
+     "action": "add",
+     "rule": "规则名称"
+   }
+   ```
+
+2. 读取现有 rules.md（如不存在则创建）
+3. 解析用户提供的规则信息
+4. 添加到对应区域（已确认/待确认）
+5. 生成唯一 ID（R001, R002... 或 P001, P002...）
+6. 写入文件
+
+**重要**：如果不创建确认文件，对 `.claude/knowledge/` 的写入会被 PreToolUse hook 阻止。这是为了确保"发现 ≠ 沉淀"原则。
 
 **示例**：
 ```
@@ -72,13 +86,75 @@ description: |
 **参数**：规则 ID（P001, P002...）
 
 **操作**：
-1. 读取 rules.md
-2. 找到待确认规则
-3. 移动到已确认区域，ID 变更为 R 前缀
-4. 添加确认时间
-5. 写入文件
 
-### 4. 发现规则
+1. **创建确认文件**：
+   ```json
+   // 写入 .claude/knowledge-write-confirmed.json
+   {
+     "user_confirmed": true,
+     "confirmed_at": "当前时间 ISO 8601",
+     "action": "confirm",
+     "rule_id": "P001"
+   }
+   ```
+
+2. 读取 rules.md
+3. 找到待确认规则
+4. 移动到已确认区域，ID 变更为 R 前缀
+5. 添加确认时间
+6. 写入文件
+
+### 4. 更新规则
+
+**触发词**：更新、修改、update
+
+**参数**：规则 ID + 新的描述或代码位置
+
+**操作**：
+
+1. **创建确认文件**：
+   ```json
+   // 写入 .claude/knowledge-write-confirmed.json
+   {
+     "user_confirmed": true,
+     "confirmed_at": "当前时间 ISO 8601",
+     "action": "update",
+     "rule_id": "R001"
+   }
+   ```
+
+2. 读取 rules.md
+3. 找到指定规则
+4. 更新描述/代码位置
+5. 更新「最后更新」日期
+6. 写入文件
+
+### 5. 删除规则
+
+**触发词**：删除、移除、delete、remove
+
+**参数**：规则 ID
+
+**操作**：
+
+1. **创建确认文件**：
+   ```json
+   // 写入 .claude/knowledge-write-confirmed.json
+   {
+     "user_confirmed": true,
+     "confirmed_at": "当前时间 ISO 8601",
+     "action": "delete",
+     "rule_id": "R001"
+   }
+   ```
+
+2. 读取 rules.md
+3. 找到指定规则
+4. 删除该行
+5. 更新「最后更新」日期
+6. 写入文件
+
+### 6. 发现规则
 
 **触发词**：发现、扫描、discover、scan
 

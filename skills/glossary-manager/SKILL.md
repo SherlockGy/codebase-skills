@@ -80,18 +80,81 @@ description: |
 - 状态：`--confirmed` 或 `--pending`（默认 pending）
 
 **执行流程**：
-1. 检查术语是否已存在
-2. 如果存在，询问是否更新
-3. 添加到对应区域（已确认/待确认）
-4. 更新「最后更新」日期
+
+1. **创建确认文件**（必须，否则写入会被 hook 阻止）：
+   ```json
+   // 写入 .claude/glossary-write-confirmed.json
+   {
+     "user_confirmed": true,
+     "confirmed_at": "当前时间 ISO 8601",
+     "action": "add",
+     "term": "术语名称"
+   }
+   ```
+
+2. 检查术语是否已存在
+3. 如果存在，询问是否更新
+4. 添加到对应区域（已确认/待确认）
+5. 更新「最后更新」日期
+
+**重要**：如果不创建确认文件，对 glossary.md 的写入会被 PreToolUse hook 阻止。这是为了确保"发现 ≠ 沉淀"原则——只有用户明确调用本 skill 时才能修改术语表。
 
 ### 确认术语
 
 当用户说「确认术语 XX」时：
 
-1. 在「待确认术语」中查找
-2. 如果找到，移动到「已确认术语」
-3. 更新状态和日期
+1. **创建确认文件**：
+   ```json
+   // 写入 .claude/glossary-write-confirmed.json
+   {
+     "user_confirmed": true,
+     "confirmed_at": "当前时间 ISO 8601",
+     "action": "confirm",
+     "term": "术语名称"
+   }
+   ```
+
+2. 在「待确认术语」中查找
+3. 如果找到，移动到「已确认术语」
+4. 更新状态和日期
+
+### 更新术语
+
+当用户说「更新术语 XX」或修改术语定义时：
+
+1. **创建确认文件**：
+   ```json
+   // 写入 .claude/glossary-write-confirmed.json
+   {
+     "user_confirmed": true,
+     "confirmed_at": "当前时间 ISO 8601",
+     "action": "update",
+     "term": "术语名称"
+   }
+   ```
+
+2. 在术语表中查找该术语
+3. 如果找到，更新定义/代码位置/备注
+4. 更新「最后更新」日期
+
+### 删除术语
+
+当用户说「删除术语 XX」时：
+
+1. **创建确认文件**：
+   ```json
+   // 写入 .claude/glossary-write-confirmed.json
+   {
+     "user_confirmed": true,
+     "confirmed_at": "当前时间 ISO 8601",
+     "action": "delete",
+     "term": "术语名称"
+   }
+   ```
+
+2. 在术语表中查找该术语
+3. 如果找到，删除该行
+4. 更新「最后更新」日期
 
 ### 发现术语
 
