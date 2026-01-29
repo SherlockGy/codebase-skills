@@ -1,0 +1,10 @@
+{
+  "name": "codebase-skills",
+  "version": "1.0.0",
+  "description": "代码库理解与需求规划工具集。支持 Java + Spring 项目的深度分析、业务逻辑追踪、术语表管理和改动规划。",
+  "author": {
+    "name": "SherlockGy"
+  },
+  "keywords": ["codebase", "analysis", "java", "spring", "investigation"],
+  "skills": "./skills/"
+}

@@ -14,17 +14,25 @@
 
 ## 安装
 
-### 方式 1：本地路径安装
+### 方式 1：通过本地 Marketplace 安装（推荐）
 
 ```bash
-claude plugin add "C:\Users\sherl\Desktop\codebase-skills"
+# 1. 添加本地 marketplace
+cd C:\Users\sherl\Desktop
+claude plugin marketplace add "./codebase-skills"
+
+# 2. 安装插件
+claude plugin install codebase-skills@codebase-skills-marketplace --scope user
+
+# 3. 验证安装
+claude plugin list
 ```
 
-### 方式 2：复制到 skills 目录
+### 方式 2：临时加载（开发/测试用）
 
 ```bash
-# 复制到个人 skills 目录
-cp -r codebase-skills/* ~/.claude/skills/
+# 启动 Claude 时加载插件目录
+claude --plugin-dir "C:\Users\sherl\Desktop\codebase-skills"
 ```
 
 ## Skills 列表
