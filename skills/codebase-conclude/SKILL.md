@@ -192,15 +192,19 @@ $ARGUMENTS
 
 对话框通知格式：
 ```
-✅ 分析完成
+═══════════════════════════════════════
+✅ 调查完成（全部3个阶段）
 
-结论文件：`.claude/investigation/conclusion.md`
+结论文件：.claude/investigation/conclusion.md
 
 简要发现：
 - [1-2句核心结论]
-- [关键发现数量]个已确认事实，[数量]个待验证假设
+- [N]个已确认事实，[M]个待验证假设
 
-详细内容请查看报告文件。
+相关报告：
+- 扫描报告：.claude/investigation/scan-report.md
+- 追踪报告：.claude/investigation/trace-report.md
+═══════════════════════════════════════
 ```
 
 ## 输出质量检查
