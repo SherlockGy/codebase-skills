@@ -3,7 +3,9 @@ name: codebase-conclude
 description: |
   综合结论阶段。基于扫描和追踪报告，生成最终分析结论。
   必须先有 scan-report.md 和 trace-report.md 才能执行。
-allowed-tools: Read, Write
+context: fork
+agent: Explore
+allowed-tools: Read
 user-invocable: false
 ---
 

@@ -129,27 +129,29 @@ allowed-tools: Skill, Read, Glob, Grep, Write
 
 ### 第四步：分阶段调查（标准模式）
 
-当判断为复杂任务时，依次执行：
+当判断为复杂任务时，**必须依次执行全部三个阶段**：
+
+> **重要**：这是一个连续的工作流。每个阶段完成后，**必须立即继续下一阶段**，不要停止或等待用户输入。只有在全部三个阶段都完成后，才能结束任务。
 
 #### 阶段 1：快速扫描
 ```
 调用 /codebase-scan "$ARGUMENTS"
 ```
-等待完成后，读取 `.claude/investigation/scan-report.md`
+扫描报告写入后，**立即**读取 `.claude/investigation/scan-report.md`，然后**立即继续阶段 2**。
 
 #### 阶段 2：深度追踪
 基于扫描报告中的「推荐追踪入口」：
 ```
 调用 /codebase-trace "追踪目标：[从扫描报告中提取]"
 ```
-等待完成后，读取 `.claude/investigation/trace-report.md`
+追踪报告写入后，**立即**读取 `.claude/investigation/trace-report.md`，然后**立即继续阶段 3**。
 
 #### 阶段 3：综合结论
 ```
 调用 /codebase-conclude "$ARGUMENTS"
 ```
 
-完成后，在对话框通知用户：
+**只有在阶段 3 完成后**，才在对话框通知用户：
 ```
 ✅ 分析完成
 

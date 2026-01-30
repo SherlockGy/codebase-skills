@@ -3,7 +3,9 @@ name: codebase-trace
 description: |
   深度追踪阶段。基于扫描报告，追踪调用链、数据流、状态变更。
   必须先有 scan-report.md 才能执行。此 skill 由 codebase-investigate 编排调用。
-allowed-tools: Glob, Grep, Read, Bash, Write
+context: fork
+agent: Explore
+allowed-tools: Glob, Grep, Read, Bash
 user-invocable: false
 ---
 
