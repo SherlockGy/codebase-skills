@@ -3,9 +3,7 @@ name: codebase-scan
 description: |
   代码库快速扫描阶段。建立项目结构、核心模块、关键入口的全局理解。
   输出扫描报告供后续阶段使用。此 skill 由 codebase-investigate 编排调用。
-context: fork
-agent: Explore
-allowed-tools: Glob, Grep, Read
+allowed-tools: Glob, Grep, Read, Write
 user-invocable: false
 ---
 
