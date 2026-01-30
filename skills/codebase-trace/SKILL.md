@@ -6,7 +6,6 @@ description: |
 context: fork
 agent: Explore
 allowed-tools: Glob, Grep, Read, Bash
-disable-model-invocation: true
 user-invocable: false
 ---
 

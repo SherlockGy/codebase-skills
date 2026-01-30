@@ -6,7 +6,6 @@ description: |
 context: fork
 agent: Explore
 allowed-tools: Read
-disable-model-invocation: true
 user-invocable: false
 ---
 
