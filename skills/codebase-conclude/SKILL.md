@@ -192,6 +192,9 @@ $ARGUMENTS
 
 对话框通知格式：
 ```
+[CONCLUDE_COMPLETE] 综合结论阶段完成
+→ 全部三个阶段已完成，调查结束
+
 ✅ 分析完成
 
 结论文件：`.claude/investigation/conclusion.md`
@@ -202,6 +205,8 @@ $ARGUMENTS
 
 详细内容请查看报告文件。
 ```
+
+**重要**：`[CONCLUDE_COMPLETE]` 标记表示整个调查流程结束，主skill无需继续。
 
 ## 输出质量检查
 

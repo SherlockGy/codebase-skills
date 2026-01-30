@@ -133,25 +133,37 @@ allowed-tools: Skill, Read, Glob, Grep, Write
 
 > **重要**：这是一个连续的工作流。每个阶段完成后，**必须立即继续下一阶段**，不要停止或等待用户输入。只有在全部三个阶段都完成后，才能结束任务。
 
+### 阶段完成标记识别
+
+子skill完成后会输出特定标记，你**必须**识别并响应：
+
+| 标记 | 含义 | 你的响应 |
+|------|------|----------|
+| `[SCAN_COMPLETE]` | 阶段1完成 | **立即**读取 scan-report.md，**立即**调用阶段2 |
+| `[TRACE_COMPLETE]` | 阶段2完成 | **立即**读取 trace-report.md，**立即**调用阶段3 |
+| `[CONCLUDE_COMPLETE]` | 阶段3完成 | 调查结束，通知用户 |
+
+**关键**：看到 `[SCAN_COMPLETE]` 或 `[TRACE_COMPLETE]` 后，**禁止停止**，必须继续。
+
 #### 阶段 1：快速扫描
 ```
 调用 /codebase-scan "$ARGUMENTS"
 ```
-扫描报告写入后，**立即**读取 `.claude/investigation/scan-report.md`，然后**立即继续阶段 2**。
+当看到 `[SCAN_COMPLETE]` 标记后，**立即**读取 `.claude/investigation/scan-report.md`，然后**立即继续阶段 2**。
 
 #### 阶段 2：深度追踪
 基于扫描报告中的「推荐追踪入口」：
 ```
 调用 /codebase-trace "追踪目标：[从扫描报告中提取]"
 ```
-追踪报告写入后，**立即**读取 `.claude/investigation/trace-report.md`，然后**立即继续阶段 3**。
+当看到 `[TRACE_COMPLETE]` 标记后，**立即**读取 `.claude/investigation/trace-report.md`，然后**立即继续阶段 3**。
 
 #### 阶段 3：综合结论
 ```
 调用 /codebase-conclude "$ARGUMENTS"
 ```
 
-**只有在阶段 3 完成后**，才在对话框通知用户：
+当看到 `[CONCLUDE_COMPLETE]` 标记后，调查结束，在对话框通知用户：
 ```
 ✅ 分析完成
 
