@@ -161,6 +161,7 @@ allowed-tools: Skill, Read, Glob, Grep, Write
 - 扫描报告：`.claude/investigation/scan-report.md`
 - 追踪报告：`.claude/investigation/trace-report.md`
 - 综合结论：`.claude/investigation/conclusion.md`
+- 代码审查：`.claude/investigation/code-review.md`（如已执行）
 
 简要发现：
 - [1-2句核心结论]
@@ -192,14 +193,16 @@ allowed-tools: Skill, Read, Glob, Grep, Write
 用户调用 investigate
     │
     ├── 执行 scan → 生成 scan-report.md
-    │   └── [检查点] 用户是否要暂停？
-    │       ├── 是 → 展示报告位置，等待指示
-    │       └── 否 → 继续
+    │   └── [检查点] 用户选择？
+    │       ├── 继续 → 执行 trace
+    │       ├── 代码Review → 执行 review → 完成后回到当前检查点
+    │       └── 其他 → 展示报告/调整方向
     │
     ├── 执行 trace → 生成 trace-report.md
-    │   └── [检查点] 用户是否要暂停？
-    │       ├── 是 → 展示报告位置，等待指示
-    │       └── 否 → 继续
+    │   └── [检查点] 用户选择？
+    │       ├── 继续 → 执行 conclude
+    │       ├── 代码Review → 执行 review → 完成后回到当前检查点
+    │       └── 其他 → 展示报告/补充追踪
     │
     └── 执行 conclude → 生成 conclusion.md → 通知用户
 ```
@@ -214,6 +217,36 @@ allowed-tools: Skill, Read, Glob, Grep, Write
 | 「重来」 | 删除 `.claude/investigation/` 下所有报告，重新从 scan 开始 |
 | 「换方向」 | 根据用户新指示，重新调用 trace（使用新的追踪入口） |
 | 「就到这里」 | 结束调查，告知用户当前已有报告位置 |
+| 「代码Review」 | 调用 `/codebase-review "$ARGUMENTS"`，review 完成后重新展示当前阶段的选项，用户可继续主流程 |
+
+#### 代码 Review 选项说明
+
+用户在任何检查点选择「代码Review」时：
+
+1. 调用 `/codebase-review "$ARGUMENTS"`
+2. review skill 会自动读取已有的中间报告（scan-report.md、trace-report.md）获取上下文
+3. review 完成后输出 `.claude/investigation/code-review.md`
+4. **回到当前检查点**，重新展示选项（不含已完成的 review 选项，改为「查看Review报告」）：
+
+**scan 阶段完成 + review 完成后的选项**：
+```
+请选择：
+1. 继续 → 执行阶段2（深度追踪）
+2. 查看报告 → 展示扫描报告内容
+3. 调整方向 → 告诉我新的追踪重点
+4. 查看Review报告 → 展示代码审查报告内容
+```
+
+**trace 阶段完成 + review 完成后的选项**：
+```
+请选择：
+1. 继续 → 执行阶段3（综合结论）
+2. 查看报告 → 展示追踪报告内容
+3. 补充追踪 → 告诉我需要深入追踪的路径
+4. 查看Review报告 → 展示代码审查报告内容
+```
+
+**重要**：代码 Review 是「旁支任务」，不影响主流程（scan → trace → conclude）的推进。Review 完成后用户仍可选择继续主流程。
 
 ## 输出格式要求
 

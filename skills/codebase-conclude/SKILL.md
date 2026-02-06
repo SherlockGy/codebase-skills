@@ -214,6 +214,7 @@ $ARGUMENTS
 相关报告：
 - 扫描报告：.claude/investigation/scan-report.md
 - 追踪报告：.claude/investigation/trace-report.md
+- 代码审查：.claude/investigation/code-review.md（如已执行）
 ═══════════════════════════════════════
 ```
 
