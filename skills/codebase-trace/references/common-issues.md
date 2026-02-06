@@ -169,19 +169,86 @@ Optional<User> userOpt = userRepository.findById(userId);
 User user = userOpt.get(); // 未检查 isPresent() 直接 get()，等效于 NPE
 ```
 
-**识别信号**：
+**代码模式级识别信号**：
 - `Integer`/`Long`/`Boolean`/`Double` 等包装类型赋值给基本类型（自动拆箱），尤其是来源于数据库字段、RPC 响应、前端入参
 - `selectById`/`findById`/`getByXxx` 等查询结果未做 null 检查即调用其方法
 - `Map.get()`/`List.stream().findFirst().get()` 结果直接调用方法
 - 链式方法调用超过 2 层且中间对象可能为 null
 - `Optional.get()` 前无 `isPresent()` / `orElse()` / `orElseThrow()` 保护
 
+**业务数据流级 NPE**（需结合数据流分析）：
+
+这类 NPE 无法从单个代码片段发现，必须追踪对象在整个调用链中的生命周期才能识别。
+
+```java
+// 场景1：状态依赖字段 —— 字段仅在特定业务状态下才有值
+// 创建订单时（状态 = CREATED）
+Order order = new Order();
+order.setStatus(CREATED);
+order.setUserId(userId);
+// 注意：paymentInfo 此时为 null，要等用户支付后才会设置
+
+// 退款服务（假设订单已支付，但未校验状态）
+public void refund(Long orderId) {
+    Order order = orderMapper.selectById(orderId);
+    // 危险：若订单尚未支付（CREATED 状态），paymentInfo 为 null
+    String transactionId = order.getPaymentInfo().getTransactionId();  // NPE
+    refundClient.execute(transactionId, order.getPaymentInfo().getAmount());
+}
+
+// 场景2：可选业务关系 —— 关联对象不是必然存在
+// 结算时假设用户一定有默认地址
+public void checkout(Long userId) {
+    User user = userService.getById(userId);
+    // 危险：新注册用户可能未设置默认地址
+    String address = user.getDefaultAddress().getFullAddress();  // NPE
+}
+
+// 场景3：跨服务数据不完整 —— 上游服务返回的对象部分字段为空
+// 上游用户服务：批量查询时为了性能，不填充详情字段
+public UserDTO getBasicInfo(Long userId) {
+    UserDTO dto = new UserDTO();
+    dto.setId(user.getId());
+    dto.setName(user.getName());
+    // 注意：department 未填充，为 null
+    return dto;
+}
+// 下游调用方：不知道上游只返回基础信息
+UserDTO user = userClient.getBasicInfo(userId);
+String deptName = user.getDepartment().getName();  // NPE
+
+// 场景4：条件赋值遗漏 —— 分支逻辑中部分路径未赋值
+public OrderDTO buildOrderDTO(Order order) {
+    OrderDTO dto = new OrderDTO();
+    dto.setOrderNo(order.getOrderNo());
+    if (order.getType() == OrderType.PHYSICAL) {
+        dto.setShippingInfo(buildShipping(order));
+    }
+    // 虚拟商品订单：shippingInfo 为 null
+    return dto;
+}
+// 下游统一处理所有订单类型
+String trackingNo = orderDTO.getShippingInfo().getTrackingNo();  // 虚拟商品订单 NPE
+```
+
+**业务数据流级识别信号**：
+- 对象字段仅在特定状态/条件下被赋值（如支付后才有 paymentInfo），但下游方法未校验状态直接访问该字段
+- 关联对象是可选的业务关系（如默认地址、VIP 信息），但调用方假设一定存在
+- 跨服务调用返回的 DTO 中部分字段未填充（如批量查询为性能省略详情），下游直接访问嵌套字段
+- `if/switch` 分支中只有部分路径对某字段赋值，其他路径该字段保持 null
+
+**如何在追踪过程中识别**：
+1. 在「数据流分析」中追踪字段的赋值点：如果某字段只在特定条件分支中被 set，标记为**条件性非空**
+2. 在「调用链追踪」中检查下游对该字段的访问：如果下游直接 get 并调用方法，无前置状态/条件校验，标记为**疑似业务 NPE**
+3. 在「下游接口调用」中检查 RPC 返回值的字段完整性：如果上游文档/代码显示部分字段可能为空，而下游未判空，标记为**跨服务 NPE 风险**
+
 **严重度**：高（核心链路、资金链路）/ 中（边缘逻辑）
 
 **为什么特别危险**：
-- 自动拆箱 NPE 在代码中**完全不可见**，没有显式的方法调用，极易遗漏
-- 查询结果 NPE 在开发/测试环境数据完整时不会触发，到生产环境数据不一致时才爆发
+- 代码模式级 NPE：自动拆箱在代码中**完全不可见**，无显式方法调用，极易遗漏
+- 业务数据流级 NPE：开发/测试环境数据完整、路径单一，**只有生产环境特定业务状态组合下才触发**
 - 链式调用 NPE 的堆栈信息无法区分是哪一层返回了 null，排查困难
+- 跨服务 NPE 的根因在上游，症状在下游，定位需要跨团队协作
 
 ---
 

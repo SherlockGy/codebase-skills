@@ -159,7 +159,7 @@ git log --oneline -10 -- <file>
 - 敏感信息泄露：日志中打印完整敏感对象、异常 message 直接返回前端
 
 **运行时稳定性类**：
-- 空指针异常（NPE）：自动拆箱 NPE（Integer/Long/Boolean 拆为基本类型）、查询结果未判空直接调用方法、Map.get() 结果未判空、链式调用中间对象可能为 null、Optional.get() 未做保护
+- 空指针异常（NPE）：分两层识别——代码模式级：自动拆箱、查询结果未判空、Map.get() 未判空、链式调用、Optional 误用；业务数据流级（需结合调用链+数据流分析）：状态依赖字段在未达到该状态时被访问、可选业务关系被假设必然存在、跨服务 DTO 部分字段未填充而下游直接访问、条件分支中仅部分路径赋值
 - 不可变集合陷阱：Arrays.asList() 返回内部类不支持 add/remove、List.of()/Collections.singletonList() 不可变、subList() 视图在原 List 变更后崩溃
 
 **性能类**：
