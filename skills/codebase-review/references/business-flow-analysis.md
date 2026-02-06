@@ -59,6 +59,12 @@
 涉及实体状态变更：[Order: CREATED → PAID]
 共享资源：[inventory 表, account 表, Redis 库存缓存]
 事务边界：[@Transactional 覆盖 Step 1-2, Step 3 在事务外]
+数据对象流动：
+  入口数据：[OrderDTO(userId✓, items✓, addressId✓)]
+  Step 1 产出：[Order(id✓, status=CREATED, paymentInfo=null)]
+  Step 2 查询：[User → defaultAddress 可能为 null]
+  Step 3 转换：[Order → OrderVO(shippingInfo 仅实物商品有值)]
+  最终返回：[OrderVO]
 ```
 
 **关键识别方法**：
@@ -69,6 +75,14 @@
 - **状态变更**：`setStatus()`、`setState()`
 - **资源操作**：`lock()`、`acquire()`、缓存写入
 - **通知发送**：邮件、短信、推送、Webhook
+
+识别数据对象的**字段填充条件**（每一步对数据对象做了什么）：
+- **创建/构造**：`new Entity()`、Builder 模式 → 哪些字段被 set？哪些保持 null？
+- **查询填充**：`selectById()` / `getByXxx()` → 结果可能为 null？哪些字段可能为 null？
+- **条件赋值**：`if (type == X) { dto.setField(...) }` → 其他分支该字段为 null
+- **转换/映射**：DTO → Entity → VO → 哪些字段在转换中丢失？
+- **集合操作**：`filter()` / `map()` / `findFirst()` → 可能产出空集/null？
+- **跨服务返回**：RPC 返回的 DTO 哪些字段可能未填充？（性能优化/接口版本差异）
 
 ---
 
@@ -309,6 +323,208 @@ COMPLETED         |   ✗    |   ✗    |   ✗   | → REFUNDING |   ✗
 
 ---
 
+### 步骤 B7：数据流空值传播分析
+
+**目标**：追踪数据对象在业务流程中的完整生命周期，找出因流程交互、条件分支、数据过滤、跨服务传递导致的 NPE 风险。
+
+> 这类 NPE **无法从单个代码片段发现**。`user.getAddress().getCity()` 这行代码本身无法判断是否安全——必须追踪 `user` 对象从何而来、`address` 字段在什么条件下被填充、当前业务场景是否满足该条件。
+
+#### B7.1 数据对象生命周期追踪
+
+**对流程中的每个关键数据对象，建立字段状态表**：
+
+```
+对象：Order
+生命周期追踪：
+
+| 阶段 | 操作 | 字段变化 | 条件 |
+|------|------|----------|------|
+| 创建 | new Order() | id=null, status=null, paymentInfo=null, shippingInfo=null | 无条件 |
+| 填充 | buildOrder(dto) | id=生成, userId=✓, status=CREATED, items=✓ | 无条件 |
+| 条件填充 | if(实物) setShipping() | shippingInfo=✓ 仅实物商品 | type==PHYSICAL |
+| 持久化 | mapper.insert() | 同上 | |
+| 支付回调 | setPaymentInfo() | paymentInfo=✓ | 支付成功后 |
+| 退款引用 | refund(orderId) | 访问 paymentInfo.transactionId | **假设已支付** |
+
+→ 风险：如果退款接口被调用时订单尚未支付（status=CREATED），paymentInfo 为 null → NPE
+→ 风险：虚拟商品订单的 shippingInfo 为 null，如果统一的订单详情接口访问 shippingInfo.trackingNo → NPE
+```
+
+#### B7.2 五种数据流 NPE 模式
+
+**模式 1：状态依赖字段**
+```
+字段 X 仅在状态 S 之后才被填充
+下游方法在未校验状态的情况下访问字段 X
+```
+分析方法：
+1. 在 B7.1 的字段状态表中找到「条件填充」的字段
+2. 追踪所有访问该字段的下游方法
+3. 检查下游方法是否校验了对应状态/条件
+
+典型场景：
+- `order.getPaymentInfo()` — 仅支付后有值，退款流程是否校验了已支付状态？
+- `order.getShippingInfo()` — 仅实物商品有值，通用的订单导出是否区分了商品类型？
+- `user.getVipInfo()` — 仅 VIP 用户有值，权益计算是否判空？
+
+**模式 2：集合操作缩减为空**
+```
+Step A: 查询得到列表 List<X>
+Step B: 过滤/筛选 → 可能为空列表
+Step C: 取第一个元素 / 聚合操作 → NPE 或异常
+```
+分析方法：
+1. 追踪所有 `stream().filter().findFirst()` / `get(0)` / `iterator().next()` 调用
+2. 向上追溯数据来源——过滤条件是否可能排除所有元素？
+3. 检查是否有 `.orElse()` / `.orElseThrow()` / 空集检查
+
+典型场景：
+```java
+// 查询用户所有地址，筛选默认地址
+List<Address> addresses = addressMapper.selectByUserId(userId);
+Address defaultAddr = addresses.stream()
+    .filter(Address::isDefault)
+    .findFirst()
+    .get();  // 如果用户没有设置默认地址 → NoSuchElementException
+// 更隐蔽：
+String city = addresses.stream()
+    .filter(Address::isDefault)
+    .findFirst()
+    .map(Address::getCity)      // 到这里还安全
+    .orElse(null);              // 返回 null
+// ... 若干方法调用后 ...
+shippingService.ship(city.trim());  // 远离数据源的 NPE
+```
+
+**模式 3：跨服务 DTO 字段缺失**
+```
+上游服务为了性能/接口版本差异，返回的 DTO 部分字段为 null
+下游服务不知道哪些字段可能为空，直接访问嵌套字段
+```
+分析方法：
+1. 识别所有跨服务调用（RPC/HTTP）及其返回类型
+2. 检查上游服务的实现——是否所有字段都被填充？有没有"精简版"查询？
+3. 检查下游代码——是否对返回值的嵌套字段做了判空？
+
+典型场景：
+```java
+// 上游 UserService 的批量查询为了性能不填充详情
+UserDTO user = userClient.getBasicInfo(userId);
+// user.getDepartment() == null（批量查询不查部门）
+String deptName = user.getDepartment().getName();  // NPE
+
+// 更隐蔽：上游某个版本开始不再填充某字段，下游代码无感知
+```
+
+**模式 4：多步转换字段丢失**
+```
+对象 A 转换为 B，B 转换为 C
+A 的某个字段在 A→B 时没有映射到 B
+下游通过 C 间接访问该字段 → null
+```
+分析方法：
+1. 追踪 DTO/Entity/VO 之间的转换代码（BeanUtils.copyProperties、手动 set、MapStruct 等）
+2. 对比源对象和目标对象的字段——是否有字段在转换中被遗漏？
+3. 特别关注 `BeanUtils.copyProperties` —— 字段名不完全匹配时静默跳过
+
+典型场景：
+```java
+// OrderDTO → Order 转换时遗漏了 couponInfo 字段
+Order order = new Order();
+order.setUserId(dto.getUserId());
+order.setItems(convertItems(dto.getItems()));
+// 忘记 order.setCouponInfo(dto.getCouponInfo())
+
+// 后续结算时
+BigDecimal discount = order.getCouponInfo().getDiscountAmount();  // NPE
+```
+
+**模式 5：Map 构建与查找不对称**
+```
+Step A: 查询列表，转为 Map<Key, Value>
+Step B: 用另一个来源的 Key 去查 Map → Key 不存在 → null
+Step C: 对 null 结果调用方法 → NPE
+```
+分析方法：
+1. 找到所有 `stream().collect(Collectors.toMap(...))` 或循环构建 Map 的代码
+2. 找到所有 `map.get(key)` 的使用处
+3. 检查 key 的来源——是否保证一定在 Map 中存在？
+
+典型场景：
+```java
+// 查询有库存的商品，构建 Map
+List<Product> products = productMapper.selectInStock();
+Map<Long, Product> productMap = products.stream()
+    .collect(Collectors.toMap(Product::getId, p -> p));
+
+// 用订单中的商品ID查 Map —— 但下单后商品可能已下架/缺货
+for (OrderItem item : orderItems) {
+    Product product = productMap.get(item.getProductId());
+    String name = product.getName();  // 商品已下架，不在 Map 中 → NPE
+}
+```
+
+#### B7.3 分析执行方法
+
+**从流程模型出发**（结合 B1 的流程重建）：
+
+```
+对于每个业务流程：
+  1. 列出流程中所有数据对象（入参 DTO、查询结果 Entity、中间变量、返回 VO）
+  2. 对每个数据对象，追踪其字段在流程各步骤中的填充状态
+  3. 标注「条件性非空」字段——仅在特定条件下被填充
+  4. 追踪每个字段被下游访问的位置
+  5. 交叉验证：「条件性非空」字段被访问时，是否有对应的条件/判空保护？
+
+特别关注以下「危险传递模式」：
+  - 方法 A 返回可能为 null 的结果 → 方法 B 接收后不判空直接传给方法 C → 方法 C 调用其方法 → NPE
+    （NPE 发生在 C，根因在 A，排查困难）
+  - 集合经过多次 filter/map → 最终可能为空 → 调用 .get(0) 或 .findFirst().get()
+  - 跨方法的 Optional 拆包：方法 A 返回 Optional → 方法 B 调用 .get() 不检查
+```
+
+**从数据查询出发**（反向追踪）：
+
+```
+对于每个数据库查询 / RPC 调用：
+  1. 返回值可能为 null？（selectById 查不到、findFirst 无结果）
+  2. 返回的对象中哪些字段可能为 null？（LEFT JOIN、可选关联、partial DTO）
+  3. 返回的集合可能为空？（带条件的查询、filter 后的结果）
+  4. 向下追踪：这些可能为 null 的值被传递到哪里？最终在哪里被解引用？
+```
+
+#### B7.4 输出格式
+
+数据流 NPE 使用独立编号 `NF-xxx`（Null Flow）：
+
+```markdown
+#### [NF-001] [NPE 模式] - [简短描述]
+
+- **数据对象**：[Order / UserDTO / ...]
+- **空值字段**：[paymentInfo / defaultAddress / ...]
+- **NPE 模式**：状态依赖字段 / 集合缩减为空 / 跨服务字段缺失 / 转换丢失 / Map 查找不对称
+- **严重度**：Critical / High / Medium
+- **确定性**：✓ 已确认 / ⚠ 疑似 / ? 待验证
+
+**空值传播链**：
+```
+[数据源] → [字段填充条件] → [传递路径] → [解引用点(NPE)]
+
+具体：
+Step 1: Order 创建 → paymentInfo = null（状态 CREATED，支付前无值）
+Step 2: 订单入库 → paymentInfo 仍为 null
+Step 3: RefundService.refund(orderId) → 查询 Order
+Step 4: order.getPaymentInfo().getTransactionId()  ← NPE（未校验 status >= PAID）
+
+触发条件：退款接口被调用时订单状态为 CREATED（未支付）
+```
+
+**现有保护**：[是否有判空/状态校验，位置]
+**修复方向**：[建议]
+```
+
+---
+
 ## 输出格式
 
 业务流程分析的发现使用独立的格式，与代码模式级问题区分：
@@ -399,4 +615,8 @@ T4: [流程B] 写入 [状态] = [新值B]  ← 覆盖了 A 的写入
 □ 是否验证了状态机的完整性？
 □ 是否考虑了重试/幂等性？
 □ 是否考虑了时间维度（超时、过期、跨日）？
+□ 是否追踪了关键数据对象的字段填充状态？
+□ 是否识别了「条件性非空」字段被无条件访问的位置？
+□ 是否分析了集合操作缩减为空的 NPE 风险？
+□ 是否检查了跨服务 DTO 字段缺失问题？
 ```
