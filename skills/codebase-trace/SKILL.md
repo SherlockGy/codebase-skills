@@ -158,6 +158,10 @@ git log --oneline -10 -- <file>
 - 越权访问：按业务 ID 查询未校验数据归属（缺少 userId 条件）
 - 敏感信息泄露：日志中打印完整敏感对象、异常 message 直接返回前端
 
+**运行时稳定性类**：
+- 空指针异常（NPE）：分两层识别——代码模式级：自动拆箱、查询结果未判空、Map.get() 未判空、链式调用、Optional 误用；业务数据流级（需结合调用链+数据流分析）：状态依赖字段在未达到该状态时被访问、可选业务关系被假设必然存在、跨服务 DTO 部分字段未填充而下游直接访问、条件分支中仅部分路径赋值
+- 不可变集合陷阱：Arrays.asList() 返回内部类不支持 add/remove、List.of()/Collections.singletonList() 不可变、subList() 视图在原 List 变更后崩溃
+
 **性能类**：
 - N+1 查询：循环内逐条调用 Mapper/Repository
 - 循环远程调用：循环内调用 RPC/HTTP/MQ
