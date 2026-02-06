@@ -211,6 +211,12 @@ allowed-tools: Glob, Grep, Read, Bash, WebSearch
 事务边界：[@Transactional 覆盖 Step 1-2 / Step 3 在事务外 / 无事务]
 涉及的状态变更：[Order: CREATED → PAID]
 共享资源：[哪些表/缓存/外部状态被多个流程使用]
+数据对象流动：
+  入口数据：[OrderDTO(userId✓, items✓, addressId✓)]
+  Step 1 产出：[Order(id✓, status=CREATED, paymentInfo=null)]
+  Step 2 查询：[User → defaultAddress 可能为 null]
+  Step 3 转换：[Order → OrderVO(shippingInfo 仅实物商品有值)]
+  最终返回：[OrderVO]
 ```
 
 ### B.2 单流程故障分析
