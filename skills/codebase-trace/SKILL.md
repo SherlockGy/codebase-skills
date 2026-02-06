@@ -158,6 +158,9 @@ git log --oneline -10 -- <file>
 - 越权访问：按业务 ID 查询未校验数据归属（缺少 userId 条件）
 - 敏感信息泄露：日志中打印完整敏感对象、异常 message 直接返回前端
 
+**运行时稳定性类**：
+- 空指针异常（NPE）：自动拆箱 NPE（Integer/Long/Boolean 拆为基本类型）、查询结果未判空直接调用方法、Map.get() 结果未判空、链式调用中间对象可能为 null、Optional.get() 未做保护
+
 **性能类**：
 - N+1 查询：循环内逐条调用 Mapper/Repository
 - 循环远程调用：循环内调用 RPC/HTTP/MQ

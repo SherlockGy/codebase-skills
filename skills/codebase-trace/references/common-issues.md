@@ -133,9 +133,61 @@ catch (Exception e) {
 
 ---
 
+## 运行时稳定性类
+
+### 7. 空指针异常（NPE）
+
+**代码模式**：
+```java
+// 危险：自动拆箱 NPE —— 包装类型为 null 时拆箱为基本类型直接崩溃
+Integer quantity = order.getQuantity(); // 数据库字段允许 null
+int total = quantity * price;           // NPE：null Integer 拆箱为 int
+
+Long userId = request.getUserId();
+long id = userId;                       // NPE：前端未传时为 null
+
+Boolean enabled = config.getEnabled();
+if (enabled) { ... }                    // NPE：null Boolean 拆箱
+
+// 危险：查询结果未判空 —— 数据不存在时直接操作返回值
+Order order = orderMapper.selectById(orderId);
+order.setStatus(PAID);                  // orderId 不存在时 NPE
+
+User user = userService.getByMobile(mobile);
+String name = user.getName();           // 手机号未注册时 NPE
+
+// 危险：Map.get() 结果未判空
+Map<String, Config> configMap = loadConfig();
+String value = configMap.get(key).getValue(); // key 不存在时 NPE
+
+// 危险：链式调用 NPE —— 调用链中任一环节返回 null 即崩溃
+String cityName = user.getAddress().getCity().getName();
+BigDecimal amount = order.getPayment().getChannel().getFee();
+
+// 危险：Optional 误用
+Optional<User> userOpt = userRepository.findById(userId);
+User user = userOpt.get(); // 未检查 isPresent() 直接 get()，等效于 NPE
+```
+
+**识别信号**：
+- `Integer`/`Long`/`Boolean`/`Double` 等包装类型赋值给基本类型（自动拆箱），尤其是来源于数据库字段、RPC 响应、前端入参
+- `selectById`/`findById`/`getByXxx` 等查询结果未做 null 检查即调用其方法
+- `Map.get()`/`List.stream().findFirst().get()` 结果直接调用方法
+- 链式方法调用超过 2 层且中间对象可能为 null
+- `Optional.get()` 前无 `isPresent()` / `orElse()` / `orElseThrow()` 保护
+
+**严重度**：高（核心链路、资金链路）/ 中（边缘逻辑）
+
+**为什么特别危险**：
+- 自动拆箱 NPE 在代码中**完全不可见**，没有显式的方法调用，极易遗漏
+- 查询结果 NPE 在开发/测试环境数据完整时不会触发，到生产环境数据不一致时才爆发
+- 链式调用 NPE 的堆栈信息无法区分是哪一层返回了 null，排查困难
+
+---
+
 ## 性能类
 
-### 7. N+1 查询
+### 8. N+1 查询
 
 **代码模式**：
 ```java
@@ -155,7 +207,7 @@ for (Order order : orders) {
 
 ---
 
-### 8. 循环中的远程调用
+### 9. 循环中的远程调用
 
 **代码模式**：
 ```java
@@ -174,7 +226,7 @@ for (Order order : orders) {
 
 ---
 
-### 9. 大事务（@Transactional 包含 RPC）
+### 10. 大事务（@Transactional 包含 RPC）
 
 **代码模式**：
 ```java
@@ -197,7 +249,7 @@ public void createOrder(OrderRequest request) {
 
 ---
 
-### 10. 无分页查询
+### 11. 无分页查询
 
 **代码模式**：
 ```java
@@ -220,7 +272,7 @@ List<User> users = userRepository.findAll();
 
 ---
 
-### 11. 同步阻塞非核心操作
+### 12. 同步阻塞非核心操作
 
 **代码模式**：
 ```java
