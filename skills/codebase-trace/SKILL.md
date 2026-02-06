@@ -160,6 +160,7 @@ git log --oneline -10 -- <file>
 
 **运行时稳定性类**：
 - 空指针异常（NPE）：自动拆箱 NPE（Integer/Long/Boolean 拆为基本类型）、查询结果未判空直接调用方法、Map.get() 结果未判空、链式调用中间对象可能为 null、Optional.get() 未做保护
+- 不可变集合陷阱：Arrays.asList() 返回内部类不支持 add/remove、List.of()/Collections.singletonList() 不可变、subList() 视图在原 List 变更后崩溃
 
 **性能类**：
 - N+1 查询：循环内逐条调用 Mapper/Repository

@@ -185,9 +185,56 @@ User user = userOpt.get(); // 未检查 isPresent() 直接 get()，等效于 NPE
 
 ---
 
+### 8. 不可变集合陷阱（UnsupportedOperationException）
+
+**代码模式**：
+```java
+// 危险：Arrays.asList() 返回的是 Arrays 内部类，不是 ArrayList，不支持增删
+List<String> list = Arrays.asList("a", "b", "c");
+list.add("d");    // UnsupportedOperationException
+list.remove(0);   // UnsupportedOperationException
+
+// 危险：Arrays.asList() 与原数组共享内存，互相影响
+String[] arr = {"a", "b", "c"};
+List<String> list = Arrays.asList(arr);
+arr[0] = "x";           // list.get(0) 也变成 "x"
+list.set(0, "y");       // arr[0] 也变成 "y"
+
+// 危险：List.of() / Map.of() 返回不可变集合（Java 9+）
+List<String> list = List.of("a", "b");
+list.add("c");          // UnsupportedOperationException
+
+// 危险：Collections 工具类返回不可变/固定集合
+List<String> single = Collections.singletonList("only");
+single.add("another");  // UnsupportedOperationException
+
+List<String> empty = Collections.emptyList();
+empty.add("item");      // UnsupportedOperationException
+
+// 危险：subList() 返回视图，原 List 结构变更后操作子列表会崩溃
+List<String> sub = list.subList(0, 2);
+list.add("new");        // 修改了原 List 的结构
+sub.get(0);             // ConcurrentModificationException
+```
+
+**识别信号**：
+- `Arrays.asList()` 的返回值被传递到下游方法，下游可能执行 `add()`/`remove()`
+- 方法参数类型为 `List<>` 但调用方传入 `Arrays.asList()`/`List.of()`/`Collections.singletonList()`
+- `subList()` 返回值在原 List 被修改后仍被使用
+- 单元测试中用 `Arrays.asList()` 构造测试数据后执行增删操作
+
+**严重度**：高（运行时才暴露，编译期无任何提示）
+
+**为什么特别危险**：
+- `Arrays.asList()` 返回的类型声明是 `List<T>`，与 `ArrayList<T>` 接口完全一致，编译器不会报错
+- 往往在特定数据条件下才触发（如列表需要动态增删时），测试覆盖不到
+- 异常类型是 `UnsupportedOperationException`，不如 NPE 直观，排查时容易困惑
+
+---
+
 ## 性能类
 
-### 8. N+1 查询
+### 9. N+1 查询
 
 **代码模式**：
 ```java
@@ -207,7 +254,7 @@ for (Order order : orders) {
 
 ---
 
-### 9. 循环中的远程调用
+### 10. 循环中的远程调用
 
 **代码模式**：
 ```java
@@ -226,7 +273,7 @@ for (Order order : orders) {
 
 ---
 
-### 10. 大事务（@Transactional 包含 RPC）
+### 11. 大事务（@Transactional 包含 RPC）
 
 **代码模式**：
 ```java
@@ -249,7 +296,7 @@ public void createOrder(OrderRequest request) {
 
 ---
 
-### 11. 无分页查询
+### 12. 无分页查询
 
 **代码模式**：
 ```java
@@ -272,7 +319,7 @@ List<User> users = userRepository.findAll();
 
 ---
 
-### 12. 同步阻塞非核心操作
+### 13. 同步阻塞非核心操作
 
 **代码模式**：
 ```java
